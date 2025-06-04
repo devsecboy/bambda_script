@@ -1,0 +1,43 @@
+String requestBody = requestResponse.request().bodyToString();
+
+if (!utilities.jsonUtils().isValidJson(requestBody)) {
+    return "";
+}
+
+// Extract the 'query' field from the JSON
+String graphqlQuery = utilities.jsonUtils().readString(requestBody, "query");
+
+if (graphqlQuery == null) {
+    return "";
+}
+
+// Find the index of "responseData:"
+int startIndex = graphqlQuery.indexOf("responseData:");
+if (startIndex == -1) {
+    return "";
+}
+
+// Move past "responseData:"
+startIndex += "responseData:".length();
+
+// Trim leading whitespace
+while (startIndex < graphqlQuery.length() && Character.isWhitespace(graphqlQuery.charAt(startIndex))) {
+    startIndex++;
+}
+
+int endIndex1 = graphqlQuery.indexOf('(', startIndex);
+int endIndex2 = graphqlQuery.indexOf('{', startIndex);
+
+int endIndex = -1;
+if (endIndex1 < endIndex2 && endIndex1 != -1)
+    endIndex = endIndex1;
+else
+    endIndex = endIndex2;
+
+if (endIndex == -1) {
+    return "";
+}
+
+// Extract the substring
+String result = graphqlQuery.substring(startIndex, endIndex).trim();
+return result;
