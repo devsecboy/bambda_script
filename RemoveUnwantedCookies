@@ -1,3 +1,6 @@
+/*Proxy -> Match and Replace -> Http match and replace rules -> Add -> Bambda Mode -> replace "return requestResponse.request();" code with following code -> Ok 
+===============================================================================================================================================================*/
+
 HttpRequest request = requestResponse.request();
 String cookieHeader = request.headerValue("Cookie");
 
