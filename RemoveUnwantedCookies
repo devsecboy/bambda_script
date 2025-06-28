@@ -1,0 +1,12 @@
+HttpRequest request = requestResponse.request();
+String cookieHeader = request.headerValue("Cookie");
+
+if (cookieHeader == null) 
+    return request;
+
+String updatedCookie = Arrays.stream(cookieHeader.split(";"))
+    .map(String::trim)
+    .filter(c -> c.startsWith("CookieName="))
+    .collect(Collectors.joining("; "));
+
+return request.withUpdatedHeader("Cookie", updatedCookie).build();
