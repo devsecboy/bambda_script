@@ -12,4 +12,4 @@ String updatedCookie = Arrays.stream(cookieHeader.split(";"))
     .filter(c -> c.startsWith("CookieName="))
     .collect(Collectors.joining("; "));
 
-return request.withUpdatedHeader("Cookie", updatedCookie).build();
+return request.withUpdatedHeader("Cookie", updatedCookie);
