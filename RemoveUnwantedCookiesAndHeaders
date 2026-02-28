@@ -8,7 +8,7 @@ if (cookieHeader == null)
     return request;
 
 // List of allowed cookie names
-Set<String> allowedCookies = Set.of("Cookie1","Cookie2");
+Set<String> allowedCookies = Set.of("sprout-session");
 
 String updatedCookie = Arrays.stream(cookieHeader.split(";"))
     .map(String::trim)
@@ -21,14 +21,20 @@ String updatedCookie = Arrays.stream(cookieHeader.split(";"))
     })
     .collect(Collectors.joining("; "));
 
-request = request.withUpdatedHeader("Cookie", updatedCookie);
 
-Set<String> excludedHeaders = Set.of("Header1", "Header2");
+request = request.withRemovedHeader("X-Datadog-Origin");
+request = request.withRemovedHeader("X-Datadog-Parent-Id");
+request = request.withRemovedHeader("X-Datadog-Trace-Id");
+request = request.withRemovedHeader("X-Datadog-Sampling-Priority");
+request = request.withRemovedHeader("Traceparent");
+request = request.withRemovedHeader("X-Requested-With");
+request = request.withRemovedHeader("Sec-Ch-Ua");
+request = request.withRemovedHeader("Sec-Ch-Ua-Mobile");
+request = request.withRemovedHeader("Sec-Ch-Ua-Platform");
+request = request.withRemovedHeader("Sec-Fetch-Site");
+request = request.withRemovedHeader("Sec-Fetch-Mode");
+request = request.withRemovedHeader("Sec-Fetch-Dest");
+request = request.withRemovedHeader("Priority");
+request = request.withRemovedHeader("Te");
 
-// Filter the list of headers and exclude unwanted ones
-List<HttpHeader> updatedHeaders = request.headers().stream()
-    .filter(header -> !excludedHeaders.contains(header.name()))  // Exclude headers in the excludedHeaders set
-    .collect(Collectors.toList());  // Collect the remaining headers
-
-// Return the updated request with the filtered headers
-return request.withUpdatedHeaders(updatedHeaders);
+return request.withUpdatedHeader("Cookie", updatedCookie);
