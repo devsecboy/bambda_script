@@ -8,7 +8,7 @@ if (cookieHeader == null)
     return request;
 
 // List of allowed cookie names
-Set<String> allowedCookies = Set.of("CookieName1", "CookieName2", "SessionId");
+Set<String> allowedCookies = Set.of("Cookie1","Cookie2");
 
 String updatedCookie = Arrays.stream(cookieHeader.split(";"))
     .map(String::trim)
@@ -21,4 +21,14 @@ String updatedCookie = Arrays.stream(cookieHeader.split(";"))
     })
     .collect(Collectors.joining("; "));
 
-return request.withUpdatedHeader("Cookie", updatedCookie);
+request = request.withUpdatedHeader("Cookie", updatedCookie);
+
+Set<String> excludedHeaders = Set.of("Header1", "Header2");
+
+// Filter the list of headers and exclude unwanted ones
+List<HttpHeader> updatedHeaders = request.headers().stream()
+    .filter(header -> !excludedHeaders.contains(header.name()))  // Exclude headers in the excludedHeaders set
+    .collect(Collectors.toList());  // Collect the remaining headers
+
+// Return the updated request with the filtered headers
+return request.withUpdatedHeaders(updatedHeaders);
