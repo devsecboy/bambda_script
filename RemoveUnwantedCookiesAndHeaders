@@ -21,7 +21,7 @@ String updatedCookie = Arrays.stream(cookieHeader.split(";"))
     })
     .collect(Collectors.joining("; "));
 
-
+// Re-write the following based on your requirement to remove specific headers from the request
 request = request.withRemovedHeader("X-Datadog-Origin");
 request = request.withRemovedHeader("X-Datadog-Parent-Id");
 request = request.withRemovedHeader("X-Datadog-Trace-Id");
