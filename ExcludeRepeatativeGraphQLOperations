@@ -3,10 +3,23 @@ name: GraphQLScoper
 function: VIEW_FILTER
 location: PROXY_HTTP_HISTORY
 source: |2
+  /**
+   * Scope out GraphQL operations that are noisy or repetitive.
+   *
+   * Two independent mechanisms:
+   *  1) EXCLUDED_OPERATIONS - always hide EVERY request with this operationName
+   *     (use for polling/heartbeat/telemetry calls you never want to see, even once)
+   *  2) DEDUPLICATE_REPEATS - if true, only show the FIRST occurrence in history of each
+   *     unique (operationName + variables) combination; hide the rest.
+   *     NOTE: operations listed in EXCLUDED_OPERATIONS never reach this stage, so they
+   *     are hidden entirely, not just deduped to one instance.
+   *
+   * @author Bineeg (extended)
+   **/
 
   // Hosts/URL substrings that MUST be present (in scope)
   var IN_SCOPE_URLS = new String[] {
-      "www.example.com/api/graphql"
+      "care-api.sec-test.springtest.us/api/graphql"
   };
 
   // Hosts/URL substrings that must NOT be present
@@ -18,10 +31,15 @@ source: |2
       ".png", ".ico", ".svg", ".jpg", ".jpeg", ".css", ".js", ".ttf", ".woff", ".woff2"
   };
 
+  // If true, also require the request to be in Burp's Target > Scope configuration
+  // (in addition to the IN_SCOPE_URLS check above). Leave false unless you've confirmed
+  // your target is added to Burp's scope - otherwise this can hide everything.
+  var REQUIRE_BURP_SCOPE = false;
+
   // GraphQL operationName values to ALWAYS hide entirely (exact match, every occurrence)
   var EXCLUDED_OPERATIONS = new String[] {
-      "geExampleUser",
-      "getExampleInfo"
+      "getUserInfo",
+      "getAppointments"
   };
 
   //----------------------------IMPORTANT------------------------------------------------
@@ -43,12 +61,22 @@ source: |2
       return false;
   }
 
+  if (REQUIRE_BURP_SCOPE && !request.isInScope()) {
+      return false;
+  }
+
   for (var i = 0; i < OUT_SCOPE_URLS.length; i++) {
       if (urlString.contains(OUT_SCOPE_URLS[i])) {
           return false;
       }
   }
 
+  // Hide OPTIONS preflight requests
+  if ("OPTIONS".equalsIgnoreCase(request.method())) {
+      return false;
+  }
+
+  // Fallback: hide by file extension too, in case MIME type detection missed it
   for (var i = 0; i < EXCLUDED_EXTENSIONS.length; i++) {
       if (urlString.toLowerCase().endsWith(EXCLUDED_EXTENSIONS[i])) {
           return false;
