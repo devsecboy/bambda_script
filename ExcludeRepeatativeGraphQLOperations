@@ -19,7 +19,7 @@ source: |2
 
   // Hosts/URL substrings that MUST be present (in scope)
   var IN_SCOPE_URLS = new String[] {
-      "care-api.sec-test.springtest.us/api/graphql"
+      "www.example.com/api/graphql"
   };
 
   // Hosts/URL substrings that must NOT be present
@@ -39,7 +39,7 @@ source: |2
   // GraphQL operationName values to ALWAYS hide entirely (exact match, every occurrence)
   var EXCLUDED_OPERATIONS = new String[] {
       "getUserInfo",
-      "getAppointments"
+      "getExampleInformation"
   };
 
   //----------------------------IMPORTANT------------------------------------------------
