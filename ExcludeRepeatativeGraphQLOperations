@@ -1,0 +1,188 @@
+id: 6172fc9a-dcb5-452f-9f5b-3ae8168b595b
+name: GraphQLScoper
+function: VIEW_FILTER
+location: PROXY_HTTP_HISTORY
+source: |2
+
+  // Hosts/URL substrings that MUST be present (in scope)
+  var IN_SCOPE_URLS = new String[] {
+      "www.example.com/api/graphql"
+  };
+
+  // Hosts/URL substrings that must NOT be present
+  var OUT_SCOPE_URLS = new String[] {
+  };
+
+  // File extensions to hide
+  var EXCLUDED_EXTENSIONS = new String[] {
+      ".png", ".ico", ".svg", ".jpg", ".jpeg", ".css", ".js", ".ttf", ".woff", ".woff2"
+  };
+
+  // GraphQL operationName values to ALWAYS hide entirely (exact match, every occurrence)
+  var EXCLUDED_OPERATIONS = new String[] {
+      "geExampleUser",
+      "getExampleInfo"
+  };
+
+  //----------------------------IMPORTANT------------------------------------------------
+  // Set true to hide repeats of the same operation+variables after the first occurrence
+  var DEDUPLICATE_REPEATS = false;
+  //-------------------------------------------------------------------------------------
+
+  var request = requestResponse.request();
+  var urlString = request.url();
+
+  var isIncludedUrl = false;
+  for (var i = 0; i < IN_SCOPE_URLS.length; i++) {
+      if (urlString.contains(IN_SCOPE_URLS[i])) {
+          isIncludedUrl = true;
+          break;
+      }
+  }
+  if (!isIncludedUrl) {
+      return false;
+  }
+
+  for (var i = 0; i < OUT_SCOPE_URLS.length; i++) {
+      if (urlString.contains(OUT_SCOPE_URLS[i])) {
+          return false;
+      }
+  }
+
+  for (var i = 0; i < EXCLUDED_EXTENSIONS.length; i++) {
+      if (urlString.toLowerCase().endsWith(EXCLUDED_EXTENSIONS[i])) {
+          return false;
+      }
+  }
+
+  // Non-POST or empty body -> not a GraphQL operation body, let it through
+  if (!request.method().equals("POST") || request.body().length() == 0) {
+      return true;
+  }
+
+  var requestBody = request.body().toString();
+
+  // Extract operationName using Burp's own JSON parameter parser (same approach
+  // used by the working "Operation" custom column) instead of a hand-rolled regex.
+  var opName = "";
+  var opNameParam = request.parameterValue("operationName", HttpParameterType.JSON);
+  if (opNameParam != null) {
+      opName = opNameParam;
+  }
+
+  // Not GraphQL (no operationName found, e.g. multipart file upload op) -> let it through
+  if (opName.isEmpty()) {
+      return true;
+  }
+
+  for (var i = 0; i < EXCLUDED_OPERATIONS.length; i++) {
+      if (opName.equals(EXCLUDED_OPERATIONS[i])) {
+          return false;
+      }
+  }
+
+  if (!DEDUPLICATE_REPEATS) {
+      return true;
+  }
+
+  // --- Deduplication: show only the first history entry for each (operation + variables) ---
+  try {
+      // Extract the "variables": {...} block with proper brace/string matching
+      // (a naive non-greedy regex breaks on nested objects, e.g. {"filter":{"status":"x"}})
+      var variablesPart = "";
+      var marker = "\"variables\"";
+      var markerIdx = requestBody.indexOf(marker);
+      if (markerIdx != -1) {
+          var braceStart = requestBody.indexOf('{', markerIdx + marker.length());
+          if (braceStart != -1) {
+              var depth = 0;
+              var inString = false;
+              var endIdx = -1;
+              for (var i = braceStart; i < requestBody.length(); i++) {
+                  var c = requestBody.charAt(i);
+                  if (c == '"') {
+                      var backslashes = 0;
+                      var j = i - 1;
+                      while (j >= 0 && requestBody.charAt(j) == '\\') {
+                          backslashes++;
+                          j--;
+                      }
+                      if (backslashes % 2 == 0) {
+                          inString = !inString;
+                      }
+                      continue;
+                  }
+                  if (inString) {
+                      continue;
+                  }
+                  if (c == '{') {
+                      depth++;
+                  } else if (c == '}') {
+                      depth--;
+                      if (depth == 0) {
+                          endIdx = i;
+                          break;
+                      }
+                  }
+              }
+              if (endIdx != -1) {
+                  variablesPart = requestBody.substring(braceStart, endIdx + 1);
+              } else {
+                  // Unbalanced/truncated body - fall back to whatever remains
+                  variablesPart = requestBody.substring(braceStart);
+              }
+          }
+      }
+
+      var key = opName + "|" + variablesPart.hashCode();
+      var currentId = requestResponse.id();
+
+      var stateFile = new java.io.File(System.getProperty("java.io.tmpdir"), "burp_graphql_dedup_state.txt");
+      if (!stateFile.exists()) {
+          stateFile.createNewFile();
+      }
+
+      // Load existing state: key=firstSeenId
+      var firstSeen = new java.util.HashMap<String, Integer>();
+      var reader = new java.io.BufferedReader(new java.io.FileReader(stateFile));
+      var line = reader.readLine();
+      while (line != null) {
+          var parts = line.split("=", 2);
+          if (parts.length == 2) {
+              try {
+                  firstSeen.put(parts[0], Integer.parseInt(parts[1]));
+              } catch (Exception ignored) {}
+          }
+          line = reader.readLine();
+      }
+      reader.close();
+
+      var existing = firstSeen.get(key);
+      var isFirst = false;
+
+      if (existing == null) {
+          firstSeen.put(key, currentId);
+          isFirst = true;
+      } else if (currentId < existing) {
+          // An earlier request for this op was evaluated later; update the record
+          firstSeen.put(key, currentId);
+          isFirst = true;
+      } else if (currentId == existing) {
+          isFirst = true;
+      } else {
+          isFirst = false;
+      }
+
+      // Persist state
+      var writer = new java.io.BufferedWriter(new java.io.FileWriter(stateFile, false));
+      for (var entry : firstSeen.entrySet()) {
+          writer.write(entry.getKey() + "=" + entry.getValue());
+          writer.newLine();
+      }
+      writer.close();
+
+      return isFirst;
+  } catch (Exception e) {
+      // Fail open: if state tracking breaks, don't hide the request
+      return true;
+  }
