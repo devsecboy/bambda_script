@@ -1,0 +1,1 @@
+return requestResponse.request().parameterValue("operationName", HttpParameterType.JSON);
